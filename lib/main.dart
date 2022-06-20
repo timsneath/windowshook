@@ -1,4 +1,7 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+
+import 'winhook.dart';
 
 void main() {
   runApp(const HookDemo());
@@ -23,12 +26,68 @@ class HomePage extends StatefulWidget {
   State<HomePage> createState() => _HomePageState();
 }
 
-class _HomePageState extends State<HomePage> {
+class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   String labelValue = 'Type some text.';
+  bool windowsHookEnabled = false;
+  int keyboardHookHandle = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void dispose() {
+    if (kDebugMode) print('Disposing...');
+    removeKeyboardHook();
+
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  void removeKeyboardHook() {
+    if (!windowsHookEnabled) return;
+
+    clearKeyboardHook(keyboardHookHandle);
+    windowsHookEnabled = false;
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    switch (state) {
+      case AppLifecycleState.paused:
+        if (kDebugMode) print('App paused...');
+        removeKeyboardHook();
+        break;
+      default:
+        break;
+    }
+  }
+
+  @override
+  Future<bool> didPopRoute() async {
+    if (kDebugMode) print('Route popped...');
+    removeKeyboardHook();
+    return false;
+  }
 
   void onTextFieldChanged(String textFieldValue) {
     setState(() {
       labelValue = textFieldValue;
+    });
+  }
+
+  void onSwitchChanged(bool value) {
+    setState(() {
+      windowsHookEnabled = !windowsHookEnabled;
+      if (windowsHookEnabled) {
+        keyboardHookHandle = setKeyboardHook();
+        if (kDebugMode) print('hook enabled');
+      } else {
+        clearKeyboardHook(keyboardHookHandle);
+        if (kDebugMode) print('hook disabled');
+      }
     });
   }
 
@@ -48,6 +107,12 @@ class _HomePageState extends State<HomePage> {
               style: Theme.of(context).textTheme.bodyLarge,
             ),
             Text(labelValue, style: Theme.of(context).textTheme.titleSmall),
+            Row(
+              children: [
+                const Text('Windows hook enabled: '),
+                Switch(value: windowsHookEnabled, onChanged: onSwitchChanged),
+              ],
+            )
           ],
         ),
       ),
